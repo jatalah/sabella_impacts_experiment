@@ -20,7 +20,9 @@ TAX <- tax_table(taxmat)
 physeq  <- phyloseq(OTU, TAX)
 
 # read sample data-------
-sampledata <- sample_data(read.csv('data/molecular_treatments.csv', row.names = 1))
+sampledata <- 
+  read.csv('data/molecular_treatments.csv', row.names = 1) %>% 
+  sample_data(.)
 
 # merge data ---------------
 physeq1  <- merge_phyloseq(physeq, sampledata)
@@ -78,7 +80,7 @@ bar_plot_phylum_by_treat <-
   y = 'Abundance',
   facet_grid = . ~ Treatment
 ) +
-  geom_bar(aes(fill = Phylum), stat = "identity", position = "stack") +
+  geom_bar(aes(fill = Phylum), stat = "identity", position = "stack", color = 1) +
   scale_fill_viridis_d() +
   coord_flip()
 
@@ -147,10 +149,10 @@ plot_ordination(
 # PERMANOVA on phylosec objects------------------
 metadata <- as(sample_data(physeq_fam_filt_log), "data.frame")
 
-permanova_euk_fam <-
-  adonis(distance(physeq_fam_filt_log, method = "bray") ~ Treatment * Density,
+permanova_euk <-
+  adonis(distance(physeq_fam_filt_log, method = "bray") ~ Treatment * final_density,
          data = metadata)
-permanova_euk_fam
+permanova_euk
 
 
 euk_tax <- 
@@ -194,14 +196,19 @@ simper_euk <-
   bind_rows(Sabella_vs_Control = simper_euk_sabe_cont,
             Mimic_vs_Control = simper_euk_mim_cont,.id = "Groups")
 
-# CAP with phyloseq dat-----------------
+# CAP biplot with phyloseq dat-----------------
 physeq_fam_filt_log_CAP <-
   ordinate(
     physeq_fam_filt_log,
     "CAP",
     distance =  'bray',
-    formula = ~ Treatment * Density
+    formula = ~ Treatment * final_density
   )
+
+# CAP table
+cap_anova_euk <- anova(physeq_fam_filt_log_CAP, by = 'terms')
+cap_anova_euk
+
 
 metadata <- as(sample_data(physeq_fam_filt_log), "data.frame")
 
@@ -216,7 +223,7 @@ cap_euk_sites <-
 cap_euk_taxa <-
   cap_euk_dat %>%
   dplyr::filter(Score == 'species') %>%
-  dplyr::filter(abs(CAP1) > .2 | abs(CAP2) > .2) %>%
+  dplyr::filter(abs(CAP1) > .15 | abs(CAP2) > .15) %>%
   rename(OTU = "Label") %>% 
   left_join(euk_tax, by = "OTU")
 
@@ -243,9 +250,24 @@ cap_euk_biplot <-
 cap_euk_biplot
 
 
+# without taxa---------
+cap_euk_plot <- 
+  ggplot(cap_euk_sites,
+       aes(
+         x = CAP1,
+         y =  CAP2
+       )) +
+  geom_point(alpha = .7, aes(color = Treatment, 
+                             size = Density)) + 
+  scale_radius(limits = c(0, 50),
+               range = c(3, 7),
+               name = 'Density') +
+  scale_color_viridis_d(name = "Treatment",
+                        option = 'D')
+
+
 # Plot richness----
 plot_richness(physeq_fam_filt_std2, x = "Treatment")
-
 
 # heatmaps-----
 x <- subset_taxa(physeq4, Class == "Polychaeta")
@@ -262,7 +284,6 @@ plot_heatmap(
   high = "#FF3300",
   trans = scales::log10_trans()
 )
-
 
 
 # relative abundance plots -----
@@ -341,11 +362,55 @@ J_euk <-
   scale_fill_viridis_d(guide = F) +
   labs(x='', y = 'Community evenness')
 
-# anova indices---------
-anova(lm(log(N)~Treatment+Density, euk_indices_raw))
-anova(lm(J~Treatment+Density, euk_indices_raw))
-anova(lm(S~Treatment+Density, euk_indices_raw))
+# ancova indices------
+indices_euk_dat <-
+  euk_indices_raw %>%
+  mutate(N = log(N +1)) %>% 
+  gather(index, value, c("N", "S", "J")) %>%
+  group_by(index) %>%
+  nest() %>%
+  mutate(
+    ancova = map(.x = data, ~ lm(value ~ Treatment * final_density, data = .x)),
+    anova_tab = map(ancova, anova),
+    ancova_table = map(anova_tab, broom::tidy),
+    residuals = map(ancova, broom::augment)
+  ) 
 
-summary(lm(log(N)~Treatment+Density, euk_indices_raw))
-summary(lm(J~Treatment+Density, euk_indices_raw))
-summary(lm(S~Treatment+Density, euk_indices_raw))
+ancova_table_euk <- 
+  indices_euk_dat %>% 
+  select(index,ancova_table) %>% 
+  unnest()
+
+## model validation----
+res_euk <- 
+  indices_euk_dat %>% 
+  select(index, residuals) %>% 
+  unnest(residuals, .drop = TRUE)
+
+# Plot of fitted vs. residual values by index to check the assumptions heteroscedasticity or any other pattern,
+#  e.g. non-linearity or missing covariates
+ggplot(res_euk) +
+  geom_point(aes(x = .fitted, y = .resid), alpha = .3) +
+  facet_wrap( ~ index, scale = 'free') +
+  geom_hline(yintercept = 0,
+             lty = 2,
+             col = 2)
+
+# boxplot by type
+ggplot(res_euk) +
+  geom_boxplot(aes(x = Treatment, y = .resid), alpha = .3) +
+  facet_wrap( ~ index, scale = 'free') +
+  geom_hline(yintercept = 0,
+             lty = 2,
+             col = 2)
+
+# qqplot of the normalised residuals to check the assumption of normality------------
+ggplot(res_euk) +
+  stat_qq(aes(sample = .std.resid), alpha = .3) +
+  facet_wrap( ~ index, scale = 'free') +
+  geom_abline(
+    intercept =  0,
+    slope = 1,
+    lty = 2,
+    col = 2
+  )
