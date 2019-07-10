@@ -1,8 +1,8 @@
 # load libraries------------
 library(phyloseq)
 library(tidyverse)
-rm(list = ls())
-source('other scripts/theme_javier.R')
+# rm(list = ls())
+source('theme_javier.R')
 theme_set(theme_javier())
 
 # data preparation------------
@@ -15,10 +15,9 @@ phylosec_mac <-
   column_to_rownames("Taxa") %>% 
   as.matrix(.)
 
-
 taxmat_mac <- 
   read.csv('data/taxonomy_mac.csv',row.names = 1 ) %>% 
-  dplyr::select(-query, -Genus, -Species) %>% 
+  dplyr::select(-query) %>% 
   as.matrix(.)
 
 OTU_mac <- otu_table(phylosec_mac, taxa_are_rows = TRUE)
@@ -32,19 +31,28 @@ sampledat_mac <-
   arrange(row.names(.)) %>% 
   as.data.frame()
 
-sampledata_mac <- sample_data(sampledat_mac)
-physeq_mac  <- phyloseq(OTU_mac, TAX_mac)
-
-# merge data------
-physeq_mac1  <- merge_phyloseq(physeq_mac, sampledata_mac)
+physeq_mac  <- 
+  phyloseq(OTU_mac, TAX_mac) %>% 
+  merge_phyloseq(., sample_data(sampledat_mac))
 
 # average samples by treatment---------
-physeq_mac1_treat_mean <- merge_samples(physeq_mac1, "Treatment", fun=mean)
-physeq_mac1_rel <- transform_sample_counts(physeq_mac1,function(x) x/sum(x))
-physeq_mac1_log <- transform_sample_counts(physeq_mac1,function(x) log10(x +1))
+physeq_mac_treat_mean <- merge_samples(physeq_mac, "Treatment", fun=mean)
+physeq_mac_rel <- transform_sample_counts(physeq_mac,function(x) x/sum(x))
+physeq_mac_log <- transform_sample_counts(physeq_mac,function(x) log10(x +1))
 
-dat <- psmelt(physeq_mac1) # create data frame
-dat_rel <- psmelt(physeq_mac1_rel)
+dat <- psmelt(physeq_mac) # create data frame
+dat_rel <- psmelt(physeq_mac_rel)
+
+
+# taxonomy description-------
+rank_names(physeq_mac)
+ntaxa(physeq_mac) #75 
+length(get_taxa_unique(physeq_mac, "Phylum")) # 10
+length(get_taxa_unique(physeq_mac, "Class")) # 13
+length(get_taxa_unique(physeq_mac, "Order")) # 22
+length(get_taxa_unique(physeq_mac, "Family"))# 45
+length(get_taxa_unique(physeq_mac, "Genus")) # 38
+length(get_taxa_unique(physeq_mac, "Species"))# 27
 
 # Figure xx macrofauna barplots by group ------
 # class-----

@@ -32,7 +32,7 @@ theme_set(theme_javier())
 # )
 
 
-## CAP plots only from macrofauna.R , aukaryotes.R and bacteria.R------
+## CAP plots for macrofauna.R , aukaryotes.R and bacteria.R------
 CAP_biplots <- 
   ggarrange(
     cap_biplot + ggtitle('Macrofauna'),
@@ -51,13 +51,13 @@ ggsave(
   filename = 'figures/all_CAP.tif',
   device = 'tiff',
   compression = 'lzw',
-  dpi = 900,
-  height = 6,
-  width = 16
+  dpi = 600,
+  height = 6*.9,
+  width = 16*.9
 )
 
 ## Boxplots diversity
-indices_mac <- read_csv('data/cleaned_data/macro_indices.csv')
+indices_mac <- read_csv('data/macro_indices.csv')
  
 S_mac <- 
   ggplot(indices_mac, aes(x = Treatment, y = S, fill = Treatment)) +
@@ -77,7 +77,7 @@ J_mac <-
   labs(x='', y = 'J')
 
 # eukaryote indices-------
-euk_indices <- read_csv('data/cleaned_data/euk_indices_raw')
+euk_indices <- read_csv('data/euk_indices_raw')
 
 N_euk <- 
   ggplot(euk_indices_raw, aes(x = Treatment, y = N, fill = Treatment)) +

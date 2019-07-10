@@ -7,6 +7,7 @@ suppressWarnings(suppressPackageStartupMessages({
   library(ggpubr)
   library(ggvegan)
   library(ggrepel)
+  library(emmeans)
 }))
 source('theme_javier.R')
 theme_set(theme_javier())
@@ -71,7 +72,10 @@ fauna_dat <-
 # transform data----------------
 log_fauna <- log10(fauna_dat[,-c(1:4)]+1)
 fauna_4th_root <- sqrt(sqrt(fauna_dat[,-c(1:4)]))
+
+# calculate dissimmilarity matrices--------
 d_4th_root_fauna<- vegdist(fauna_4th_root , method = 'bray')
+d_log_fauna<- vegdist(log_fauna, method = 'bray')
 
 # 03 mean + CI plots of dominant taxa-----------
 long_fauna_dat <- 
@@ -184,7 +188,8 @@ pco_ordination
 # 06 CAPscale-----------------------
 cap <-
   capscale(
-    sqrt(sqrt(fauna_dat[, -c(1:4)])) ~ Treatment * final_density,
+    log(fauna_dat[, -c(1:4)]+1) ~ Treatment + final_density,
+    # sqrt(sqrt(fauna_dat[, -c(1:4)])) ~ Treatment * final_density,
     data = fauna_dat,
     sqrt.dist = T,
     add = F,
@@ -196,6 +201,15 @@ cap <-
 # anova table Cap
 cap_anova_macrofauna <- anova(cap, permutations = 999, by = 'terms')
 cap_anova_macrofauna
+
+
+macrofauna_cap_table <- 
+  data.frame(cap_anova_macrofauna) %>% 
+  rownames_to_column() %>% 
+  rename(Terms = rowname,
+         df = Df,
+         SS = SumOfSqs,
+         P = Pr..F.)
 
 # get data for plots 
 cap_dat <- fortify(cap) 
@@ -216,7 +230,7 @@ cap_taxa <-
   )) %>%
   mutate(plot_label = str_replace(plot_label," ","~"))
 
-# CAP biplot
+# CAP biplot-------
 cap_plot <-
   ggplot(cap_sites,
          aes(
@@ -241,7 +255,7 @@ cap_biplot <-
   geom_text_repel(
     data = cap_taxa,
     aes(label = plot_label, x = CAP1 * 4, y =  CAP2 * 4),
-    size = 3,
+    size = 4,
     parse = TRUE
   )
 cap_biplot
@@ -254,6 +268,7 @@ ggsave(
   height = 4,
   width = 5
 )
+
 # Both plot in one
 ggarrange(pco_ordination, cap_plot, common.legend = T, labels = "auto")
 ggsave(
@@ -268,71 +283,55 @@ ggsave(
 # 07 PERMANOVA--------------------------------------
 permanova <-
   adonis(
-    sqrt(sqrt(fauna_dat[, -c(1:3)])) ~ Treatment * final_density,
+    log(fauna_dat[, -c(1:4)]+1) ~  Treatment + final_density,
     data = fauna_dat,
     method =  "bray",
     permutations = 9999
   )
 permanova
 
+macrofauna_permanova_table <- 
+  data.frame(permanova$aov.tab) %>% 
+  rownames_to_column() %>%
+  rename(Terms = rowname,
+         df = Df,
+         SS = SumsOfSqs,
+         MS = MeanSqs,
+         "Pseudo-F" = F.Model,
+         P = Pr..F.)
 
-data_mimic <- filter(fauna_dat, Treatment == 'Control' | Treatment == "Mimic")
-data_sabella <- filter(fauna_dat, Treatment == 'Control' | Treatment == "Sabella")
-
-adonis(
-  sqrt(sqrt(data_mimic[, -c(1:4)])) ~ final_density,
-  data = data_mimic,
-  method =  "bray",
-  permutations = 999
-)
-
-adonis(
-  sqrt(sqrt(data_sabella[, -c(1:4)])) ~ final_density,
-  data = data_sabella,
-  method =  "bray",
-  permutations = 999
-)
- 
 
 
 # 08 PERMANOVA pairwise comparisons-------------
-source('H:/javiera/Stats/R folder/pairwise.adonis.R')
-
-pairwise.adonis(sqrt(sqrt(fauna_dat[, -c(1:3)] )),
+source('pairwise.adonis.R')
+set.seed(99) 
+# .Random.seed
+pairwise.adonis(
+  log10(fauna_dat[, -c(1:4)]+1),
+  # sqrt(sqrt(fauna_dat[, -c(1:4)] )),
                 fauna_dat$Treatment,
                 sim.method = 'bray')
 
 # pairs  F.Model         R2 p.value p.adjusted
-# 1   Control vs Mimic 1.311313 0.09851117   0.148      0.444
-# 2 Control vs Sabella 1.571497 0.11579390   0.065      0.195
-# 3   Mimic vs Sabella 1.537155 0.07867856   0.046      0.138
+# 1 Control vs Sabella 1.484889 0.11011501   0.091      0.273
+# 2   Control vs Mimic 1.234271 0.09326323   0.204      0.612
+# 3   Sabella vs Mimic 1.486769 0.07629632   0.046      0.138
 
 # 09 SIMPER ----
-simp <-
-  simper(fauna_4th_root, fauna_dat$Treatment, permutations = 999)
+simp <- simper(fauna_dat[, -c(1:4)], fauna_dat$Treatment, permutations = 999)
+# simp <- simper(fauna_dat[,-c(1:4)], fauna_dat$Treatment, permutations = 999)
 summary(simp, digits = 2, ordered = T)
 
-sim_mc_cont_sabell <-
-  simp$Control_Sabella %>%
-  data.frame() %>%
-  filter(p < 0.1) %>%
-  arrange(p) %>%
-  dplyr::select(species, ratio, ava, avb, cusum, p) %>%
-  rename(Taxa = "species") %>% 
-  print(digits = 2)
-
-sim_mc_cont_mimic <-
-  simp$Control_Mimic %>%
-  data.frame() %>%
-  filter(p < 0.2) %>%
-  arrange(p) %>%
-  dplyr::select(species, ratio, ava, avb, cusum, p) %>%
-  rename(Taxa = "species") %>% 
-  print(digits = 2)
-
 simper_macrofauna <-
-  bind_rows("Sabella vs. Control" = sim_mc_cont_sabell,
-            "Mimic vs. Control" = sim_mc_cont_mimic,.id = "Groups")
+  bind_rows("Control vs. Sabella" = simp$Control_Sabella %>% data.frame(),
+            "Control vs.Mimic" = simp$Control_Mimic %>% data.frame(),
+            "Sabella vs. Mimic" = simp$Sabella_Mimic %>% data.frame(),
+            .id = "Groups") %>% 
+  dplyr::select(-overall, -ord) %>% 
+  dplyr::filter(cusum<.7) %>% 
+  rename(Taxa = "species") %>% 
+  print(digits = 2)
+
 
 # 10 PERMDISP ----------------------
 dis <- vegdist(sqrt(sqrt(fauna_dat[,-c(1:3)] )))
@@ -356,7 +355,7 @@ indices <-
             F = fisher.alpha(fauna_dat[, -c(1:4)]),
             ES = rarefy(fauna_dat[, -c(1:4)], min(N))) %>% 
   bind_cols(treat_dat) %>% 
-  write_csv(., 'data/macro_indices.csv')
+  write_csv('data/macro_indices.csv')
 
 boxplots <- 
   indices %>% 
@@ -377,18 +376,22 @@ indices_dat <-
   group_by(index) %>%
   nest() %>%
   mutate(
-    ancova = map(.x = data, ~ lm(value ~ Treatment * final_density, data = .x)),
-    anova_tab = map(ancova, anova),
+    ancova = map(.x = data, ~ aov(value ~ Treatment + final_density, data = .x)),
+    anova_tab = map(ancova, ~car::Anova(., type = 2)),
     ancova_table = map(anova_tab, broom::tidy),
-    residuals = map(ancova, broom::augment)
-  ) 
+    residuals = map(ancova, broom::augment),
+    emm = map(ancova,~emmeans(., ~Treatment)),
+    posthoc = map(emm,pairs))
 
-ancova_macro <- 
+
+ancova_table_macro <- 
   indices_dat %>% 
   select(index,ancova_table) %>% 
   unnest()
 
-
+indices_dat %>% 
+  select(index,posthoc) %>% 
+  flatten()
 
 ## model validation----
 res <- 
@@ -423,78 +426,3 @@ ggplot(res) +
     lty = 2,
     col = 2
   )
-
-# ## other approaches----------
-# library(caret)
-# ancova_S <- 
-#   train(
-#   S ~ Treatment * final_density,
-#   method = 'lm',
-#   data = indices,
-#   preProcess = "BoxCox",
-#   trControl = trainControl(method = "none")
-# )
-# 
-# anova(lm(log(N)~Treatment*final_density, indices))
-# anova(lm(S~Treatment*final_density, indices))
-# anova(lm(J~Treatment*final_density, indices))
-# 
-# # regression plots
-
-# library(ggpmisc)
-# lm_plots <-
-#   indices %>%
-#   filter(Treatment == 'Control' | Treatment == "Mimic") %>%
-#   gather(index, value, c("N", "S", "J")) %>%
-#   mutate(index = fct_relevel(index, c("N", "S", "J"))) %>%
-#   ggplot(aes(x = final_density, y = value)) +
-#   geom_point(alpha = .8) +
-#   facet_wrap( ~ index, scales = 'free') +
-#   scale_fill_viridis_d(guide = F) +
-#   geom_smooth(method = 'lm') +
-#   stat_poly_eq(formula = y~x, parse = T)
-# 
-# 
-# indices %>%
-#   filter(Treatment == 'Control' | Treatment == "Sabella") %>%
-#   gather(index, value, c("N", "S", "J")) %>%
-#   mutate(index = fct_relevel(index, c("N", "S", "J"))) %>%
-#   ggplot(aes(x = final_density, y = value)) +
-#   geom_point(alpha = .8) +
-#   facet_wrap( ~ index, scales = 'free') +
-#   scale_fill_viridis_d(guide = F) +
-#   geom_smooth(method = 'lm') +
-#   stat_poly_eq(formula = y~x, parse = T)
-# 
-# indices %>%
-#   filter(Treatment == 'Control' | Treatment == "Mimic") %>%
-#   lm(S~final_density, data = .) %>% 
-#   summary(.)
-# 
-# # 12 Diversity including excavated samples --------------------------
-# all_fauna_dat <- 
-#   bind_rows(fauna_dat[,-c(2:3)], large_fauna) %>% 
-#   group_by(sample) %>% 
-#   summarise_all(sum, na.rm = T) %>% 
-#   left_join(., treat_dat) %>% 
-#   dplyr::select(sample,Treatment, Density, everything(), - (code:Treat))
-# 
-# indices_all <- 
-#   all_fauna_dat %>% 
-#   transmute(N = rowSums(all_fauna_dat[, -c(1:3)]),
-#             H = diversity(all_fauna_dat[, -c(1:3)]),
-#             S = specnumber(all_fauna_dat[, -c(1:3)]),
-#             J = H/log(S),
-#             F = fisher.alpha(all_fauna_dat[, -c(1:3)]),
-#             ES = rarefy(all_fauna_dat[, -c(1:3)], min(N))) %>% 
-#   bind_cols(treat_dat)
-# 
-# boxplots_all <- 
-#   indices_all %>% 
-#   gather(index, value, c("N", "S", "J", "ES")) %>% 
-#   mutate(index = fct_relevel(index, c("N", "S", "J"))) %>% 
-#   ggplot(., aes(x = Treatment, y = value, fill = Treatment)) +
-#   geom_boxplot(alpha = .7) +
-#   facet_wrap(~index,scales = 'free') +
-#   scale_fill_viridis(guide = F, discrete = T)
-# boxplots_all
