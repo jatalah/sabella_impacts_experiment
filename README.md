@@ -1,1 +1,0 @@
-# sabella_impacts_experiment

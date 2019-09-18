@@ -37,11 +37,12 @@ physeq_mac  <-
 
 # average samples by treatment---------
 physeq_mac_treat_mean <- merge_samples(physeq_mac, "Treatment", fun=mean)
-physeq_mac_rel <- transform_sample_counts(physeq_mac,function(x) x/sum(x))
+physeq_mac_rel <-  transform_sample_counts(physeq_mac ,function(x) (x/sum(x))*100)
 physeq_mac_log <- transform_sample_counts(physeq_mac,function(x) log10(x +1))
 
-dat <- psmelt(physeq_mac) # create data frame
-dat_rel <- psmelt(physeq_mac_rel)
+dat_rel <- 
+  psmelt(physeq_mac_rel) %>% 
+  write_csv('data/output_data/macrofauna_relative_abund.csv')
 
 
 # taxonomy description-------
@@ -68,30 +69,6 @@ ggplot(dat %>% drop_na(Class),
   coord_flip() +
   facet_wrap(~Treatment) +
   labs(y = 'Relative abundance')
-
-# or ----
-# ggplot(dat %>% drop_na(Class),
-#        aes(
-#          x = Class,
-#          y = Abundance,
-#          fill = Treatment,
-#          group =  Treatment
-#        )) +
-#   stat_summary(
-#     fun.y = mean,
-#     geom = "bar",
-#     color = 'gray20',
-#     position = position_dodge(width = .9)
-#   ) +
-#   stat_summary(
-#     fun.data = mean_se,
-#     geom = "errorbar",
-#     width = 0.2,
-#     color = 'gray20',
-#     position = position_dodge(width = .9)
-#   ) +
-#   scale_fill_viridis_d() +
-#     labs(y = 'Relative abundance')
 
 # or at Phylum level------------------
 ggplot(dat %>% drop_na(Phylum),
