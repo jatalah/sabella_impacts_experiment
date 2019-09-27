@@ -7,96 +7,89 @@ library(ggpubr)
 bact_rare_rel_df <- read_csv('data/bact_rel_abund.csv')
 
 data_bact_sunburst <-
-  bact_rare_rel_df %>% 
-  group_by(Phylum, Class,  Sub_class, Family) %>%
-  summarise(N = sum(Abundance)) %>% 
-  ungroup() %>% 
-  mutate(prop = N/sum(N)*100) %>% 
-  select(N, everything()) %>% 
-  arrange(desc(prop)) %>% 
-  print()
-
-
-data_bact_sunburst <- 
-  data_bact_sunburst %>% 
+  bact_rare_rel_df %>%
   group_by(Phylum) %>%
-  summarise(N = sum(N)) %>% 
-  ungroup() %>% 
-  mutate(prop = N/sum(N)*100) %>% 
-  filter(prop>.5) %>% 
-  arrange(desc(prop)) %>% 
-  write_csv('data/output_data/data_bact_sunburst.csv')
-
-data_bact_sunburst <- read_csv('data/output_data/data_bact_sunburst.csv')
-bact_donut <- 
-  ggplot(data_bact_sunburst, aes(x = 2, fill = Phylum, y = prop)) +
-  geom_bar(stat = 'identity', color = "black") +
-  coord_polar(theta = "y", start = 0) +
-  theme_void() +
-  # scale_fill_brewer(palette = "Spectral") +
-  scale_fill_viridis_d(option = 'B') +
-  xlim(0.5, 2.5) +
-  labs(subtitle = 'Bacteria')
-bact_donut
+  summarise(N = sum(Abundance)) %>%
+  ungroup() %>%
+  mutate(prop = N / sum(N) * 100) %>%
+  arrange(desc(prop))
 
 # eukaryote---
 data_euk_sunburst <-
   euk_rare_rel_df %>%
   group_by(Phylum) %>%
-  summarise(N = sum(Abundance)) %>% 
-  ungroup() %>% 
-  mutate(prop = N/sum(N)*100) %>% 
-  select(N, everything())
-
-data_euk_sunburst <-
-  data_euk_sunburst %>%
+  summarise(N = sum(Abundance)) %>%
+  ungroup() %>%
+  mutate(prop = N / sum(N) * 100) %>%
+  select(N, everything()) %>%
   arrange(desc(Phylum)) %>%
-  arrange(desc(prop)) %>%
-  write_csv('data/output_data/data_euk_sunburst.csv')
+  arrange(desc(prop))
 
 # macrofauna -------------
 data_mac_sunburst <-
   psmelt(physeq_mac) %>%
   group_by(Phylum) %>%
-  summarise(N = sum(Abundance)) %>% 
-  ungroup() %>% 
-  mutate(prop = N/sum(N)*100) %>% 
-  select(N, everything()) %>% 
-  arrange(desc(prop)) %>% 
-  write_csv('data/output_data/data_mac_sunburst.csv')
+  summarise(N = sum(Abundance)) %>%
+  ungroup() %>%
+  mutate(prop = N / sum(N) * 100) %>%
+  arrange(desc(prop))
 
-all_sunburst_data <- 
-  bind_rows(Macrofauna = data_mac_sunburst, Eukaryote = data_euk_sunburst,.id = 'dataset') %>% 
-  group_by(dataset) %>% 
+all_sunburst_data <-
+  bind_rows(
+    `a. Macrofauna` = data_mac_sunburst,
+    `b. Eukaryote` = data_euk_sunburst,
+    `c. Bacteria` = data_bact_sunburst,
+    .id = 'dataset'
+  ) %>%
+  group_by(dataset) %>%
   arrange(desc(Phylum)) %>%
-  mutate(pos = cumsum(prop)- prop/2) %>% 
-  filter(prop>.2) %>% 
+  mutate(pos = cumsum(prop) - prop / 2) %>%
   write_csv('data/output_data/all_sunburst_data.csv')
 
-all_sunburst_data <-  read_csv('data/output_data/all_sunburst_data.csv')
-euk_mac_donut <- 
-  ggplot(all_sunburst_data, aes(x = 2, fill = Phylum, y = prop)) +
-  geom_bar(stat = 'identity', color = "black") +
+euk_mac_donut <-
+  all_sunburst_data %>%
+  filter(dataset != "c. Bacteria") %>%
+  ggplot(aes(x = 2, fill = Phylum, y = prop)) +
+  geom_bar(stat = 'identity', color = "gray40") +
   coord_polar(theta = "y", start = 0) +
-  facet_wrap(~dataset, ncol = 1) +
-  theme_void() +
-  scale_fill_viridis_d() +
-  xlim(0.5, 2.5) 
+  theme_void(base_size = 9) +
+  scale_fill_viridis_d(option = 'D', alpha = .8) +
+  xlim(0.5, 2.5) +
+  facet_wrap( ~ dataset) +
+  theme(
+    legend.position = c(.5,-.1),
+    legend.title = element_blank(),
+    plot.margin = unit(c(0, 0, 0, 0), "lines"),
+    legend.spacing.y = unit(0, 'line'),
+    legend.spacing.x = unit(.1, 'line'),
+    legend.key.size = unit(.3, "cm")
+  ) +
+  guides(fill = guide_legend(nrow = 5,
+                             byrow = TRUE))
+
+bact_donut <-
+  all_sunburst_data %>%
+  filter(dataset == "c. Bacteria" & prop > .2) %>%
+  ggplot(aes(x = 2, fill = Phylum, y = prop)) +
+  geom_bar(stat = 'identity', color = "gray40") +
+  coord_polar(theta = "y", start = 0) +
+  theme_void(base_size = 9) +
+  scale_fill_viridis_d(option = 'B', alpha = .8) +
+  xlim(0.5, 2.5) +
+  facet_wrap( ~ dataset) +
+  theme(
+    legend.position = c(.4,-.1),
+    legend.title = element_blank(),
+    plot.margin = unit(c(0, 0, 0, 0), "lines"),
+    legend.spacing.y = unit(0, 'line'),
+    legend.spacing.x = unit(.1, 'line'),
+    legend.key.size = unit(.3, "cm")
+  ) +
+  guides(fill = guide_legend(nrow = 5,
+                             byrow = TRUE))
+
 
 # save all plot ----
-all_donuts <- 
-  ggarrange(euk_mac_donut, bact_donut)
+all_donuts <- ggarrange(euk_mac_donut, bact_donut, widths = c(2, 1))
 
-ggsave(
-  all_donuts,
-  filename = 'figures/all_dounuts.tiff',
-  device = 'tiff',
-  compression = 'lzw',width =6, height = 6 
-)
 
-ggsave(
-  all_donuts,
-  filename = 'figures/all_dounuts.svg',
-  device = 'svg',
-  width =6, height = 6 
-)

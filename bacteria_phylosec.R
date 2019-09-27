@@ -7,6 +7,7 @@ library(ggvegan)
 library(vegan)
 library(ggrepel)
 library(emmeans)
+library(indicspecies)
 source('theme_javier.R')
 theme_set(theme_javier())
 
