@@ -3,6 +3,8 @@
 https://www.frontiersin.org/articles/10.3389/fevo.2019.00481/full
 <a href="https://www.frontiersin.org/articles/10.3389/fevo.2019.00481/full"></a>
 
+<a href="https://doi.org/10.5281/zenodo.4111055"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.4111055.svg" alt="DOI"></a>
+
 <br>
 ABSTRACT 
 
